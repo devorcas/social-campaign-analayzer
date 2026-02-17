@@ -242,3 +242,72 @@ The workflow passes compact metadata and artifact references, not large payloads
 2. Process only selected keyframes instead of every video frame.
 3. Skip transcription when no audio is available.
 4. Use pay-per-use serverless compute and tune Lambda memory per stage.
+
+---
+
+## Code Structure
+
+```text
+src/
+  common/
+    config.py
+    http.py
+    job_store.py
+    s3_store.py
+    summary_client.py
+  handlers/
+    api_handler.py
+    validate_input.py
+    ingest_content.py
+    prepare_media.py
+    transcribe_audio.py
+    moderate_text.py
+    moderate_visual.py
+    aggregate_scores.py
+    generate_summary_and_persist.py
+    mark_completed.py
+stepfunctions/
+  campaign_analysis_workflow.asl.json
+```
+
+### Implementation Scope
+
+1. `generate_summary_and_persist` is implemented end-to-end:
+   - builds summary input
+   - calls Claude API (with fallback when API key is missing/unavailable)
+   - writes final artifact to S3
+   - persists final result/status to DynamoDB
+2. Other step handlers are blueprint handlers:
+   - parse expected input
+   - produce placeholder output payload
+   - return normalized event for next state
+
+---
+
+## Environment Variables
+
+1. `ANALYSIS_TABLE_NAME` (default: `analysis_jobs`)
+2. `STATE_MACHINE_ARN` (required for `POST /v1/analysis-jobs`)
+3. `ARTIFACTS_BUCKET` (optional, for S3 artifact writes)
+4. `ANTHROPIC_API_KEY` (optional, enables real Claude summary call)
+5. `ANTHROPIC_MODEL` (default: `claude-3-5-sonnet-latest`)
+
+---
+
+## Step Function Definition
+
+State machine JSON is located at:
+
+`stepfunctions/campaign_analysis_workflow.asl.json`
+
+Replace placeholder Lambda ARNs before deployment:
+
+1. `<VALIDATE_INPUT_LAMBDA_ARN>`
+2. `<INGEST_CONTENT_LAMBDA_ARN>`
+3. `<PREPARE_MEDIA_LAMBDA_ARN>`
+4. `<TRANSCRIBE_AUDIO_LAMBDA_ARN>`
+5. `<MODERATE_TEXT_LAMBDA_ARN>`
+6. `<MODERATE_VISUAL_LAMBDA_ARN>`
+7. `<AGGREGATE_SCORES_LAMBDA_ARN>`
+8. `<GENERATE_SUMMARY_AND_PERSIST_LAMBDA_ARN>`
+9. `<MARK_COMPLETED_LAMBDA_ARN>`
