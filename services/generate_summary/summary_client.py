@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-import urllib.error
-import urllib.request
 from typing import Any
+
+from anthropic import Anthropic
 
 from shared.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
 
@@ -27,31 +27,17 @@ def generate_summary(analysis: dict[str, Any], transcript_text: str | None = Non
         f"Analysis JSON:\n{json.dumps(analysis, ensure_ascii=True)}\n\n"
         f"Transcript:\n{(transcript_text or '').strip()[:5000]}"
     )
-    payload = {
-        "model": ANTHROPIC_MODEL,
-        "max_tokens": 400,
-        "temperature": 0.2,
-        "messages": [{"role": "user", "content": prompt}],
-    }
-
-    req = urllib.request.Request(
-        url="https://api.anthropic.com/v1/messages",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-        },
-        method="POST",
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.URLError:
+        client = Anthropic(api_key=ANTHROPIC_API_KEY)
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=400,
+            temperature=0.2,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception:
         return _fallback_summary(analysis)
 
-    parts = body.get("content", [])
-    texts = [p.get("text", "") for p in parts if p.get("type") == "text"]
-    summary = "\n".join([t.strip() for t in texts if t.strip()])
+    texts = [block.text for block in response.content if getattr(block, "type", None) == "text"]
+    summary = "\n".join([t.strip() for t in texts if t and t.strip()])
     return summary or _fallback_summary(analysis)

@@ -1,0 +1,216 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Social Campaign Analyzer serverless stack (API + Step Functions + Lambda + DynamoDB + S3)
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+  AnthropicApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+  AnthropicModel:
+    Type: String
+    Default: claude-sonnet-4-6
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 512
+    Tracing: Active
+    Environment:
+      Variables:
+        ANALYSIS_TABLE_NAME: !Ref AnalysisJobsTable
+        ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+        ANTHROPIC_MODEL: !Ref AnthropicModel
+
+Resources:
+  AnalyzerApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub "social-campaign-analyzer-api-${EnvironmentName}"
+      StageName: !Ref EnvironmentName
+      TracingEnabled: true
+
+  AnalysisJobsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "analysis-jobs-${EnvironmentName}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: job_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: job_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "social-campaign-analyzer-artifacts-${AWS::AccountId}-${AWS::Region}-${EnvironmentName}"
+      VersioningConfiguration:
+        Status: Enabled
+
+  ApiHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "sca-api-handler-${EnvironmentName}"
+      CodeUri: ../../
+      Handler: services/api_handler/handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisJobsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - states:StartExecution
+              Resource: !GetAtt CampaignAnalysisStateMachine.Arn
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Ref CampaignAnalysisStateMachine
+      Events:
+        CreateAnalysisJob:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AnalyzerApi
+            Path: /v1/analysis-jobs
+            Method: POST
+        GetAnalysisJob:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AnalyzerApi
+            Path: /v1/analysis-jobs/{job_id}
+            Method: GET
+
+  IngestContentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "sca-ingest-content-${EnvironmentName}"
+      CodeUri: ../../
+      Handler: services/ingest_content/handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisJobsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactsBucket
+
+  PrepareMediaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "sca-prepare-media-${EnvironmentName}"
+      CodeUri: ../../
+      Handler: services/prepare_media/handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisJobsTable
+
+  TranscribeAudioFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "sca-transcribe-audio-${EnvironmentName}"
+      CodeUri: ../../
+      Handler: services/transcribe_audio/handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisJobsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactsBucket
+
+  ModerateTextFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "sca-moderate-text-${EnvironmentName}"
+      CodeUri: ../../
+      Handler: services/moderate_text/handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisJobsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactsBucket
+
+  ModerateVisualFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "sca-moderate-visual-${EnvironmentName}"
+      CodeUri: ../../
+      Handler: services/moderate_visual/handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisJobsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactsBucket
+
+  AggregateScoresFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "sca-aggregate-scores-${EnvironmentName}"
+      CodeUri: ../../
+      Handler: services/aggregate_scores/handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisJobsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactsBucket
+
+  GenerateSummaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "sca-generate-summary-${EnvironmentName}"
+      CodeUri: ../../
+      Handler: services/generate_summary/handler.lambda_handler
+      Environment:
+        Variables:
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisJobsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactsBucket
+
+  CampaignAnalysisStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub "sca-analysis-workflow-${EnvironmentName}"
+      DefinitionUri: workflow.asl.json
+      DefinitionSubstitutions:
+        IngestContentFunctionArn: !GetAtt IngestContentFunction.Arn
+        PrepareMediaFunctionArn: !GetAtt PrepareMediaFunction.Arn
+        TranscribeAudioFunctionArn: !GetAtt TranscribeAudioFunction.Arn
+        ModerateTextFunctionArn: !GetAtt ModerateTextFunction.Arn
+        ModerateVisualFunctionArn: !GetAtt ModerateVisualFunction.Arn
+        AggregateScoresFunctionArn: !GetAtt AggregateScoresFunction.Arn
+        GenerateSummaryFunctionArn: !GetAtt GenerateSummaryFunction.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref IngestContentFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref PrepareMediaFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref TranscribeAudioFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ModerateTextFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ModerateVisualFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref AggregateScoresFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref GenerateSummaryFunction
+
+Outputs:
+  ApiBaseUrl:
+    Description: API endpoint base URL
+    Value: !Sub "https://${AnalyzerApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}"
+  StateMachineArn:
+    Description: State machine ARN
+    Value: !Ref CampaignAnalysisStateMachine
+  ArtifactsBucketName:
+    Description: S3 bucket for analysis artifacts
+    Value: !Ref ArtifactsBucket
+  JobsTableName:
+    Description: DynamoDB jobs table
+    Value: !Ref AnalysisJobsTable

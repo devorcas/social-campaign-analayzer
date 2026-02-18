@@ -1,0 +1,124 @@
+{
+  "Comment": "Campaign analysis orchestration",
+  "StartAt": "IngestContent",
+  "States": {
+    "IngestContent": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${IngestContentFunctionArn}",
+        "Payload.$": "$"
+      },
+      "OutputPath": "$.Payload",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 2,
+          "BackoffRate": 2.0,
+          "MaxAttempts": 2
+        }
+      ],
+      "Next": "PrepareMedia"
+    },
+    "PrepareMedia": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${PrepareMediaFunctionArn}",
+        "Payload.$": "$"
+      },
+      "OutputPath": "$.Payload",
+      "Next": "ParallelAnalysis"
+    },
+    "ParallelAnalysis": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "TranscribeAudio",
+          "States": {
+            "TranscribeAudio": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${TranscribeAudioFunctionArn}",
+                "Payload.$": "$"
+              },
+              "OutputPath": "$.Payload",
+              "Next": "ModerateText"
+            },
+            "ModerateText": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${ModerateTextFunctionArn}",
+                "Payload.$": "$"
+              },
+              "OutputPath": "$.Payload",
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "ModerateVisual",
+          "States": {
+            "ModerateVisual": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${ModerateVisualFunctionArn}",
+                "Payload.$": "$"
+              },
+              "OutputPath": "$.Payload",
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultPath": "$.parallel_results",
+      "Next": "MergeParallelResults"
+    },
+    "MergeParallelResults": {
+      "Type": "Pass",
+      "Parameters": {
+        "job_id.$": "$.job_id",
+        "campaign_id.$": "$.campaign_id",
+        "source.$": "$.source",
+        "artifacts": {
+          "ingestion_s3_uri.$": "$.parallel_results[0].artifacts.ingestion_s3_uri",
+          "transcript_s3_uri.$": "$.parallel_results[0].artifacts.transcript_s3_uri",
+          "text_s3_uri.$": "$.parallel_results[0].artifacts.text_s3_uri",
+          "visual_s3_uri.$": "$.parallel_results[1].artifacts.visual_s3_uri"
+        },
+        "transcript_text.$": "$.parallel_results[0].transcript_text",
+        "text_moderation.$": "$.parallel_results[0].text_moderation",
+        "visual_moderation.$": "$.parallel_results[1].visual_moderation"
+      },
+      "Next": "AggregateScores"
+    },
+    "AggregateScores": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${AggregateScoresFunctionArn}",
+        "Payload.$": "$"
+      },
+      "OutputPath": "$.Payload",
+      "Next": "GenerateSummary"
+    },
+    "GenerateSummary": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${GenerateSummaryFunctionArn}",
+        "Payload.$": "$"
+      },
+      "OutputPath": "$.Payload",
+      "End": true
+    }
+  }
+}

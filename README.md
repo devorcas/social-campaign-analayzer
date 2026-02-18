@@ -85,6 +85,8 @@ This service exposes an asynchronous job API for campaign content analysis.
   "job_id": "job_01JXYZ...",
   "status": "completed",
   "result": {
+    "overall_visual_safety_score": 92.4,
+    "overall_text_safety_score": 86.3,
     "visual": {
       "overall_score": 92.4,
       "categories": [
@@ -322,6 +324,11 @@ shared/
   workflow_utils.py
 stepfunctions/
   campaign_analysis_workflow.asl.json
+cicd/
+  sam/
+    template.yaml
+    workflow.asl.json
+    README.md
 ```
 
 ### Packaging Strategy
@@ -353,7 +360,7 @@ Root `requirements.txt` can still be used for local development tooling/tests. L
 
 1. `generate_summary` is implemented end-to-end:
    - builds summary input
-   - calls Claude API (with fallback when API key is missing/unavailable)
+   - calls Claude API via official Anthropic Python SDK (with fallback when API key is missing/unavailable or API call fails)
    - writes final artifact to S3
    - persists final result/status to DynamoDB
 2. Other step handlers are blueprint handlers:
@@ -370,7 +377,17 @@ Root `requirements.txt` can still be used for local development tooling/tests. L
 2. `STATE_MACHINE_ARN` (required for `POST /v1/analysis-jobs`)
 3. `ARTIFACTS_BUCKET` (optional, for S3 artifact writes)
 4. `ANTHROPIC_API_KEY` (optional, enables real Claude summary call)
-5. `ANTHROPIC_MODEL` (default: `claude-3-5-sonnet-latest`)
+5. `ANTHROPIC_MODEL` (default: `claude-sonnet-4-6`)
+
+---
+
+## Testing
+
+Run tests with `pytest`:
+
+```bash
+PYTHONPATH=. python3 -m pytest -q
+```
 
 ---
 
