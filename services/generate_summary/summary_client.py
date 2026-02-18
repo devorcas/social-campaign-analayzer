@@ -5,7 +5,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from common.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+from shared.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
 
 
 def _fallback_summary(analysis: dict[str, Any]) -> str:

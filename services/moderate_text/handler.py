@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+"""Text moderation stage Lambda.
+
+Business logic:
+- Produces text safety moderation output (blueprint placeholder in current scaffold).
+- Stores moderation artifact in S3.
+- Updates DynamoDB with text moderation metadata for job tracking.
+"""
+
 from typing import Any
 
-from common.job_store import set_artifact_uri, set_stage_output
-from common.s3_store import put_json
-from handlers._shared import complete_stage, ensure_artifacts, fail_stage, require_job_id
+from shared.job_store import set_artifact_uri, set_stage_output
+from shared.s3_store import put_json
+from shared.workflow_utils import complete_stage, ensure_artifacts, fail_stage, require_job_id
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Run text moderation stage and pass normalized moderation output forward."""
     stage = "moderate_text"
     job_id = require_job_id(event)
     try:

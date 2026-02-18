@@ -209,6 +209,30 @@ Provide a reliable and cost-effective asynchronous content analysis pipeline usi
 4. `AggregateScores`
 5. `GenerateSummary`
 
+### State Responsibilities
+
+1. `IngestContent`
+   - Normalizes campaign input from Amplify source reference.
+   - Stores ingestion artifact in S3 and writes ingestion metadata to DynamoDB.
+2. `PrepareMedia`
+   - Prepares media-processing metadata (audio extraction/frame sampling placeholders).
+   - Updates stage metadata in DynamoDB for observability.
+3. `TranscribeAudio`
+   - Produces transcript artifact (blueprint placeholder in current scaffold).
+   - Stores transcript artifact in S3 and transcript metadata in DynamoDB.
+4. `ModerateText`
+   - Produces text moderation output (blueprint placeholder in current scaffold).
+   - Stores moderation artifact in S3 and compact moderation metadata in DynamoDB.
+5. `ModerateVisual`
+   - Produces visual moderation output (blueprint placeholder in current scaffold).
+   - Stores moderation artifact in S3 and compact moderation metadata in DynamoDB.
+6. `AggregateScores`
+   - Combines text and visual moderation into a single analysis payload.
+   - Stores aggregate artifact in S3 and aggregate score metadata in DynamoDB.
+7. `GenerateSummary`
+   - Generates human-readable summary using Claude (or deterministic fallback).
+   - Stores final result artifact in S3 and persists terminal job result/status in DynamoDB.
+
 ### Data Flow Between Stages
 
 The workflow passes compact metadata and artifact references, not large payloads.
@@ -264,25 +288,66 @@ The workflow passes compact metadata and artifact references, not large payloads
 ## Code Structure
 
 ```text
-src/
-  common/
-    config.py
-    http.py
-    job_store.py
-    s3_store.py
+services/
+  api_handler/
+    handler.py
+    requirements.txt
+  ingest_content/
+    handler.py
+    requirements.txt
+  prepare_media/
+    handler.py
+    requirements.txt
+  transcribe_audio/
+    handler.py
+    requirements.txt
+  moderate_text/
+    handler.py
+    requirements.txt
+  moderate_visual/
+    handler.py
+    requirements.txt
+  aggregate_scores/
+    handler.py
+    requirements.txt
+  generate_summary/
+    handler.py
     summary_client.py
-  handlers/
-    api_handler.py
-    ingest_content.py
-    prepare_media.py
-    transcribe_audio.py
-    moderate_text.py
-    moderate_visual.py
-    aggregate_scores.py
-    generate_summary.py
+    requirements.txt
+shared/
+  config.py
+  http.py
+  job_store.py
+  s3_store.py
+  workflow_utils.py
 stepfunctions/
   campaign_analysis_workflow.asl.json
 ```
+
+### Packaging Strategy
+
+1. Build one deployment artifact per service under `services/<lambda_name>`.
+2. Do not package the whole repository into each Lambda.
+3. Include `shared/` via:
+   - a Lambda Layer (`python/shared/...`) preferred, or
+   - copying `shared/` into each Lambda build artifact.
+4. Keep service-specific code local (for example `generate_summary/summary_client.py` only in summary Lambda).
+
+### Shared Modules
+
+Shared modules contain cross-cutting concerns only:
+
+1. `config.py`: environment configuration
+2. `http.py`: API response/body helpers
+3. `job_store.py`: DynamoDB status/progress/result persistence
+4. `s3_store.py`: artifact JSON writes to S3
+5. `workflow_utils.py`: common workflow handler utilities (job id, stage completion/failure helpers)
+
+### Legacy Note
+
+Previous `src/common` and `src/handlers` layout was replaced with per-Lambda service folders to support isolated builds and smaller deployment artifacts.
+
+Root `requirements.txt` can still be used for local development tooling/tests. Lambda packaging should use each service's `requirements.txt`.
 
 ### Implementation Scope
 

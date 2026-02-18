@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+"""Audio transcription stage Lambda.
+
+Business logic:
+- Produces transcript artifact (blueprint placeholder in current scaffold).
+- Stores transcript JSON in S3.
+- Updates DynamoDB with transcript artifact URI and transcript metadata.
+"""
+
 from typing import Any
 
-from common.job_store import set_artifact_uri, set_stage_output
-from common.s3_store import put_json
-from handlers._shared import complete_stage, ensure_artifacts, fail_stage, require_job_id
+from shared.job_store import set_artifact_uri, set_stage_output
+from shared.s3_store import put_json
+from shared.workflow_utils import complete_stage, ensure_artifacts, fail_stage, require_job_id
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Run transcription stage and expose transcript refs/text to downstream steps."""
     stage = "transcribe_audio"
     job_id = require_job_id(event)
     try:

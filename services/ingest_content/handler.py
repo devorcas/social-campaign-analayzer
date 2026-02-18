@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+"""Ingestion stage Lambda.
+
+Business logic:
+- Builds normalized campaign content payload from source reference.
+- Stores ingestion artifact in S3.
+- Updates DynamoDB with progress, artifact URI, and stage metadata.
+"""
+
 from typing import Any
 
-from common.job_store import set_artifact_uri, set_job_status, set_stage_output
-from common.s3_store import put_json
-from handlers._shared import complete_stage, ensure_artifacts, fail_stage, require_job_id
+from shared.job_store import set_artifact_uri, set_job_status, set_stage_output
+from shared.s3_store import put_json
+from shared.workflow_utils import complete_stage, ensure_artifacts, fail_stage, require_job_id
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Run ingestion stage and enrich workflow event with ingestion artifact refs."""
     stage = "ingest_content"
     job_id = require_job_id(event)
     try:

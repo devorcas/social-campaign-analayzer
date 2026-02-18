@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""API Lambda for analysis job lifecycle.
+
+Business logic:
+- POST creates a new job record and starts the Step Functions workflow.
+- GET returns the current job snapshot from DynamoDB for polling clients.
+"""
+
 import json
 import uuid
 from typing import Any
@@ -7,15 +14,16 @@ from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
-from common.config import STATE_MACHINE_ARN
-from common.http import json_response, parse_body
-from common.job_store import create_job, get_job, set_job_status
+from shared.config import STATE_MACHINE_ARN
+from shared.http import json_response, parse_body
+from shared.job_store import create_job, get_job, set_job_status
 
 
 _sfn = boto3.client("stepfunctions")
 
 
 def _handle_post(event: dict[str, Any]) -> dict[str, Any]:
+    """Create analysis job and trigger orchestration."""
     body = parse_body(event)
     campaign_id = body.get("campaign_id")
     source = body.get("source", {})
@@ -58,6 +66,7 @@ def _handle_post(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _handle_get(event: dict[str, Any]) -> dict[str, Any]:
+    """Return a single analysis job by job_id."""
     path = event.get("pathParameters") or {}
     job_id = path.get("job_id")
     if not job_id:
@@ -70,6 +79,7 @@ def _handle_get(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Route API Gateway HTTP method to POST/GET handlers."""
     method = event.get("httpMethod")
     if method == "POST":
         return _handle_post(event)

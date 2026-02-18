@@ -1,15 +1,25 @@
 from __future__ import annotations
 
+"""Summary stage Lambda (implemented end-to-end).
+
+Business logic:
+- Generates human-readable summary from aggregated analysis (+ transcript context).
+- Calls Claude API when configured, otherwise uses a deterministic fallback summary.
+- Stores final result artifact in S3.
+- Persists final job result and terminal completed status in DynamoDB.
+"""
+
 from datetime import datetime, timezone
 from typing import Any
 
-from common.job_store import persist_final_result, set_stage_output
-from common.s3_store import put_json
-from common.summary_client import generate_summary
-from handlers._shared import ensure_artifacts, fail_stage, require_job_id
+from shared.job_store import persist_final_result, set_stage_output
+from shared.s3_store import put_json
+from summary_client import generate_summary
+from shared.workflow_utils import ensure_artifacts, fail_stage, require_job_id
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Generate summary and persist final analysis result."""
     stage = "generate_summary"
     job_id = require_job_id(event)
     try:
@@ -20,6 +30,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         result = {
             "job_id": job_id,
             "campaign_id": event.get("campaign_id"),
+            "overall_visual_safety_score": analysis.get("visual", {}).get("overall_score"),
+            "overall_text_safety_score": analysis.get("text", {}).get("overall_score"),
             "visual": analysis.get("visual"),
             "text": analysis.get("text"),
             "human_summary": summary,

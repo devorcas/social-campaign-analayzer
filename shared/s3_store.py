@@ -5,7 +5,7 @@ from typing import Any
 
 import boto3
 
-from common.config import ARTIFACTS_BUCKET
+from shared.config import ARTIFACTS_BUCKET
 
 
 _s3 = boto3.client("s3")

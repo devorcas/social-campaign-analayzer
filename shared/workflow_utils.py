@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from common.job_store import safe_set_failed, set_stage_status
+from shared.job_store import safe_set_failed, set_stage_status
 
 
 def require_job_id(event: dict[str, Any]) -> str:

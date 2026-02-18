@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+"""Aggregation stage Lambda.
+
+Business logic:
+- Combines text and visual moderation outputs into a single analysis payload.
+- Persists aggregate artifact in S3.
+- Updates DynamoDB with aggregate metadata (overall score snapshots + artifact URI).
+"""
+
 from typing import Any
 
-from common.job_store import set_artifact_uri, set_stage_output
-from common.s3_store import put_json
-from handlers._shared import complete_stage, ensure_artifacts, fail_stage, require_job_id
+from shared.job_store import set_artifact_uri, set_stage_output
+from shared.s3_store import put_json
+from shared.workflow_utils import complete_stage, ensure_artifacts, fail_stage, require_job_id
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Aggregate moderation outputs and publish analysis payload for summary stage."""
     stage = "aggregate_scores"
     job_id = require_job_id(event)
     try:

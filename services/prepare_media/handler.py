@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+"""Media preparation stage Lambda.
+
+Business logic:
+- Prepares media-processing metadata (audio extraction/frame sampling placeholders).
+- Persists compact stage metadata for observability.
+"""
+
 from typing import Any
 
-from common.job_store import set_stage_output
-from handlers._shared import complete_stage, ensure_artifacts, fail_stage, require_job_id
+from shared.job_store import set_stage_output
+from shared.workflow_utils import complete_stage, ensure_artifacts, fail_stage, require_job_id
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Run media preparation and attach preparation metadata to the event."""
     stage = "prepare_media"
     job_id = require_job_id(event)
     try:
