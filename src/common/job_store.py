@@ -29,22 +29,23 @@ def create_job(job_id: str, campaign_id: str, source: dict[str, Any]) -> dict[st
         "source_ref": source.get("reference_id"),
         "status": "queued",
         "progress": {
-            "validate_input": "pending",
             "ingest_content": "pending",
             "prepare_media": "pending",
             "transcribe_audio": "pending",
             "moderate_text": "pending",
             "moderate_visual": "pending",
             "aggregate_scores": "pending",
-            "generate_summary_and_persist": "pending",
+            "generate_summary": "pending",
         },
         "artifacts": {
             "ingestion_s3_uri": None,
             "transcript_s3_uri": None,
             "visual_s3_uri": None,
             "text_s3_uri": None,
+            "aggregate_s3_uri": None,
             "final_s3_uri": None,
         },
+        "stage_outputs": {},
         "result": None,
         "error": None,
         "created_at": now_iso(),
@@ -91,6 +92,15 @@ def set_artifact_uri(job_id: str, key: str, value: str | None) -> None:
     )
 
 
+def set_stage_output(job_id: str, stage: str, output: dict[str, Any]) -> None:
+    _table.update_item(
+        Key={"job_id": job_id},
+        UpdateExpression="SET #updated_at=:updated_at, #stage_outputs.#stage=:output",
+        ExpressionAttributeNames={"#updated_at": "updated_at", "#stage_outputs": "stage_outputs", "#stage": stage},
+        ExpressionAttributeValues={":updated_at": now_iso(), ":output": output},
+    )
+
+
 def persist_final_result(job_id: str, result: dict[str, Any], final_s3_uri: str | None = None) -> None:
     expr = "SET #status=:status, #result=:result, #updated_at=:updated_at, #progress.#summary=:summary_status"
     names = {
@@ -98,7 +108,7 @@ def persist_final_result(job_id: str, result: dict[str, Any], final_s3_uri: str 
         "#result": "result",
         "#updated_at": "updated_at",
         "#progress": "progress",
-        "#summary": "generate_summary_and_persist",
+        "#summary": "generate_summary",
     }
     values: dict[str, Any] = {
         ":status": "completed",

@@ -63,11 +63,13 @@ This service exposes an asynchronous job API for campaign content analysis.
   "job_id": "job_01JXYZ...",
   "status": "running",
   "progress": {
-    "ingestion": "completed",
-    "transcription": "running",
-    "moderation": "pending",
-    "aggregation": "pending",
-    "summary": "pending"
+    "ingest_content": "completed",
+    "prepare_media": "completed",
+    "transcribe_audio": "running",
+    "moderate_text": "pending",
+    "moderate_visual": "pending",
+    "aggregate_scores": "pending",
+    "generate_summary": "pending"
   },
   "created_at": "2026-02-17T18:20:00Z",
   "updated_at": "2026-02-17T18:21:10Z"
@@ -167,8 +169,7 @@ Job-level status values:
 1. `queued`
 2. `running`
 3. `completed`
-4. `completed_with_warnings`
-5. `failed`
+4. `failed`
 
 ---
 
@@ -200,15 +201,13 @@ Provide a reliable and cost-effective asynchronous content analysis pipeline usi
 
 ### State Machine Breakdown
 
-1. `ValidateInput`
-2. `IngestContent`
-3. `PrepareMedia`
-4. `ParallelAnalysis`
+1. `IngestContent`
+2. `PrepareMedia`
+3. `ParallelAnalysis`
    - `TranscribeAudio` -> `ModerateText`
    - `ModerateVisual`
-5. `AggregateScores`
-6. `GenerateSummaryAndPersist`
-7. `MarkCompleted`
+4. `AggregateScores`
+5. `GenerateSummary`
 
 ### Data Flow Between Stages
 
@@ -218,13 +217,29 @@ The workflow passes compact metadata and artifact references, not large payloads
 {
   "job_id": "job_01JXYZ",
   "campaign_id": "cmp_123",
-  "source_ref": "amplify_campaign_987",
+  "source": {
+    "type": "amplify",
+    "reference_id": "amplify_campaign_987"
+  },
   "artifacts": {
     "ingestion_s3_uri": "s3://bucket/jobs/job_01JXYZ/ingestion.json",
     "transcript_s3_uri": "s3://bucket/jobs/job_01JXYZ/transcript.json",
     "visual_s3_uri": "s3://bucket/jobs/job_01JXYZ/visual.json",
     "text_s3_uri": "s3://bucket/jobs/job_01JXYZ/text.json",
+    "aggregate_s3_uri": "s3://bucket/jobs/job_01JXYZ/aggregate_scores.json",
     "final_s3_uri": "s3://bucket/jobs/job_01JXYZ/final.json"
+  },
+  "stage_outputs": {
+    "ingest_content": {
+      "ingestion_s3_uri": "s3://bucket/jobs/job_01JXYZ/ingestion.json",
+      "source_type": "amplify",
+      "post_count": 0
+    },
+    "transcribe_audio": {
+      "transcript_s3_uri": "s3://bucket/jobs/job_01JXYZ/transcript.json",
+      "segment_count": 0,
+      "has_text": false
+    }
   }
 }
 ```
@@ -233,8 +248,9 @@ The workflow passes compact metadata and artifact references, not large payloads
 
 1. API is asynchronous: `POST` returns `202` quickly with `job_id`.
 2. Step-level retries with exponential backoff for transient provider/network failures.
-3. DynamoDB remains the source of truth for job status.
-4. S3 stores large outputs to keep workflow state small.
+3. Step payload + S3 artifact references drive state transitions (no DynamoDB fallback read path).
+4. DynamoDB stores status/progress and compact stage metadata only.
+5. S3 stores large outputs to keep workflow state small.
 
 ### Latency and Cost Notes
 
@@ -257,22 +273,20 @@ src/
     summary_client.py
   handlers/
     api_handler.py
-    validate_input.py
     ingest_content.py
     prepare_media.py
     transcribe_audio.py
     moderate_text.py
     moderate_visual.py
     aggregate_scores.py
-    generate_summary_and_persist.py
-    mark_completed.py
+    generate_summary.py
 stepfunctions/
   campaign_analysis_workflow.asl.json
 ```
 
 ### Implementation Scope
 
-1. `generate_summary_and_persist` is implemented end-to-end:
+1. `generate_summary` is implemented end-to-end:
    - builds summary input
    - calls Claude API (with fallback when API key is missing/unavailable)
    - writes final artifact to S3
@@ -280,6 +294,7 @@ stepfunctions/
 2. Other step handlers are blueprint handlers:
    - parse expected input
    - produce placeholder output payload
+   - write stage artifact and compact stage metadata to DynamoDB
    - return normalized event for next state
 
 ---
@@ -302,12 +317,10 @@ State machine JSON is located at:
 
 Replace placeholder Lambda ARNs before deployment:
 
-1. `<VALIDATE_INPUT_LAMBDA_ARN>`
-2. `<INGEST_CONTENT_LAMBDA_ARN>`
-3. `<PREPARE_MEDIA_LAMBDA_ARN>`
-4. `<TRANSCRIBE_AUDIO_LAMBDA_ARN>`
-5. `<MODERATE_TEXT_LAMBDA_ARN>`
-6. `<MODERATE_VISUAL_LAMBDA_ARN>`
-7. `<AGGREGATE_SCORES_LAMBDA_ARN>`
-8. `<GENERATE_SUMMARY_AND_PERSIST_LAMBDA_ARN>`
-9. `<MARK_COMPLETED_LAMBDA_ARN>`
+1. `<INGEST_CONTENT_LAMBDA_ARN>`
+2. `<PREPARE_MEDIA_LAMBDA_ARN>`
+3. `<TRANSCRIBE_AUDIO_LAMBDA_ARN>`
+4. `<MODERATE_TEXT_LAMBDA_ARN>`
+5. `<MODERATE_VISUAL_LAMBDA_ARN>`
+6. `<AGGREGATE_SCORES_LAMBDA_ARN>`
+7. `<GENERATE_SUMMARY_LAMBDA_ARN>`

@@ -1,30 +1,7 @@
 {
   "Comment": "Campaign analysis orchestration. Replace ARNs before deployment.",
-  "StartAt": "ValidateInput",
+  "StartAt": "IngestContent",
   "States": {
-    "ValidateInput": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "Parameters": {
-        "FunctionName": "<VALIDATE_INPUT_LAMBDA_ARN>",
-        "Payload.$": "$"
-      },
-      "OutputPath": "$.Payload",
-      "Retry": [
-        {
-          "ErrorEquals": [
-            "Lambda.ServiceException",
-            "Lambda.AWSLambdaException",
-            "Lambda.SdkClientException",
-            "States.TaskFailed"
-          ],
-          "IntervalSeconds": 2,
-          "BackoffRate": 2.0,
-          "MaxAttempts": 2
-        }
-      ],
-      "Next": "IngestContent"
-    },
     "IngestContent": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
@@ -131,23 +108,13 @@
         "Payload.$": "$"
       },
       "OutputPath": "$.Payload",
-      "Next": "GenerateSummaryAndPersist"
+      "Next": "GenerateSummary"
     },
-    "GenerateSummaryAndPersist": {
+    "GenerateSummary": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
-        "FunctionName": "<GENERATE_SUMMARY_AND_PERSIST_LAMBDA_ARN>",
-        "Payload.$": "$"
-      },
-      "OutputPath": "$.Payload",
-      "Next": "MarkCompleted"
-    },
-    "MarkCompleted": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "Parameters": {
-        "FunctionName": "<MARK_COMPLETED_LAMBDA_ARN>",
+        "FunctionName": "<GENERATE_SUMMARY_LAMBDA_ARN>",
         "Payload.$": "$"
       },
       "OutputPath": "$.Payload",

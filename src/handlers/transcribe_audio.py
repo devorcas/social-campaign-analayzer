@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from common.job_store import set_artifact_uri
+from common.job_store import set_artifact_uri, set_stage_output
 from common.s3_store import put_json
 from handlers._shared import complete_stage, ensure_artifacts, fail_stage, require_job_id
 
@@ -17,6 +17,12 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         artifacts["transcript_s3_uri"] = uri
         event["transcript_text"] = transcript["full_text"]
         set_artifact_uri(job_id, "transcript_s3_uri", uri)
+        has_text = bool(transcript["full_text"].strip())
+        set_stage_output(
+            job_id=job_id,
+            stage=stage,
+            output={"transcript_s3_uri": uri, "segment_count": len(transcript["segments"]), "has_text": has_text},
+        )
         complete_stage(job_id, stage)
         return event
     except Exception as exc:

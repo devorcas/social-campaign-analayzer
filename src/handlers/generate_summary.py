@@ -3,14 +3,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from common.job_store import persist_final_result
+from common.job_store import persist_final_result, set_stage_output
 from common.s3_store import put_json
 from common.summary_client import generate_summary
 from handlers._shared import ensure_artifacts, fail_stage, require_job_id
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    stage = "generate_summary_and_persist"
+    stage = "generate_summary"
     job_id = require_job_id(event)
     try:
         analysis = event.get("analysis") or {"visual": {"overall_score": 100.0}, "text": {"overall_score": 100.0}}
@@ -30,6 +30,15 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         ensure_artifacts(event)["final_s3_uri"] = final_uri
 
         persist_final_result(job_id=job_id, result=result, final_s3_uri=final_uri)
+        set_stage_output(
+            job_id=job_id,
+            stage=stage,
+            output={
+                "final_s3_uri": final_uri,
+                "summary_chars": len(summary),
+                "status": "completed",
+            },
+        )
         event["result"] = result
         return event
     except Exception as exc:
