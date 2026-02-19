@@ -1,15 +1,19 @@
 # Social Campaign Analyzer
 
+## Functional View
+
+![Social Campaign](social_campaign_picture.png)
+
 ## Analysis API
 
 This service exposes an asynchronous job API for campaign content analysis.
 
 ### Endpoints
 
-1. `POST /v1/analysis-jobs`  
-   Trigger a new analysis job.
-2. `GET /v1/analysis-jobs/{job_id}`  
-   Fetch job status and final result.
+1. `POST /v1/analysis-jobs`
+  Trigger a new analysis job.
+2. `GET /v1/analysis-jobs/{job_id}`
+  Fetch job status and final result.
 
 ---
 
@@ -206,34 +210,34 @@ Provide a reliable and cost-effective asynchronous content analysis pipeline usi
 1. `IngestContent`
 2. `PrepareMedia`
 3. `ParallelAnalysis`
-   - `TranscribeAudio` -> `ModerateText`
-   - `ModerateVisual`
+  - `TranscribeAudio` -> `ModerateText`
+  - `ModerateVisual`
 4. `AggregateScores`
 5. `GenerateSummary`
 
 ### State Responsibilities
 
 1. `IngestContent`
-   - Normalizes campaign input from Amplify source reference.
-   - Stores ingestion artifact in S3 and writes ingestion metadata to DynamoDB.
+  - Normalizes campaign input from Amplify source reference.
+  - Stores ingestion artifact in S3 and writes ingestion metadata to DynamoDB.
 2. `PrepareMedia`
-   - Prepares media-processing metadata (audio extraction/frame sampling placeholders).
-   - Updates stage metadata in DynamoDB for observability.
+  - Prepares media-processing metadata (audio extraction/frame sampling placeholders).
+  - Updates stage metadata in DynamoDB for observability.
 3. `TranscribeAudio`
-   - Produces transcript artifact (blueprint placeholder in current scaffold).
-   - Stores transcript artifact in S3 and transcript metadata in DynamoDB.
+  - Produces transcript artifact (blueprint placeholder in current scaffold).
+  - Stores transcript artifact in S3 and transcript metadata in DynamoDB.
 4. `ModerateText`
-   - Produces text moderation output (blueprint placeholder in current scaffold).
-   - Stores moderation artifact in S3 and compact moderation metadata in DynamoDB.
+  - Produces text moderation output (blueprint placeholder in current scaffold).
+  - Stores moderation artifact in S3 and compact moderation metadata in DynamoDB.
 5. `ModerateVisual`
-   - Produces visual moderation output (blueprint placeholder in current scaffold).
-   - Stores moderation artifact in S3 and compact moderation metadata in DynamoDB.
+  - Produces visual moderation output (blueprint placeholder in current scaffold).
+  - Stores moderation artifact in S3 and compact moderation metadata in DynamoDB.
 6. `AggregateScores`
-   - Combines text and visual moderation into a single analysis payload.
-   - Stores aggregate artifact in S3 and aggregate score metadata in DynamoDB.
+  - Combines text and visual moderation into a single analysis payload.
+  - Stores aggregate artifact in S3 and aggregate score metadata in DynamoDB.
 7. `GenerateSummary`
-   - Generates human-readable summary using Claude (or deterministic fallback).
-   - Stores final result artifact in S3 and persists terminal job result/status in DynamoDB.
+  - Generates human-readable summary using Claude (or deterministic fallback).
+  - Stores final result artifact in S3 and persists terminal job result/status in DynamoDB.
 
 ### Data Flow Between Stages
 
@@ -336,8 +340,8 @@ cicd/
 1. Build one deployment artifact per service under `services/<lambda_name>`.
 2. Do not package the whole repository into each Lambda.
 3. Include `shared/` via:
-   - a Lambda Layer (`python/shared/...`) preferred, or
-   - copying `shared/` into each Lambda build artifact.
+  - a Lambda Layer (`python/shared/...`) preferred, or
+  - copying `shared/` into each Lambda build artifact.
 4. Keep service-specific code local (for example `generate_summary/summary_client.py` only in summary Lambda).
 
 ### Shared Modules
@@ -359,15 +363,15 @@ Root `requirements.txt` can still be used for local development tooling/tests. L
 ### Implementation Scope
 
 1. `generate_summary` is implemented end-to-end:
-   - builds summary input
-   - calls Claude API via official Anthropic Python SDK (with fallback when API key is missing/unavailable or API call fails)
-   - writes final artifact to S3
-   - persists final result/status to DynamoDB
+  - builds summary input
+  - calls Claude API via official Anthropic Python SDK (with fallback when API key is missing/unavailable or API call fails)
+  - writes final artifact to S3
+  - persists final result/status to DynamoDB
 2. Other step handlers are blueprint handlers:
-   - parse expected input
-   - produce placeholder output payload
-   - write stage artifact and compact stage metadata to DynamoDB
-   - return normalized event for next state
+  - parse expected input
+  - produce placeholder output payload
+  - write stage artifact and compact stage metadata to DynamoDB
+  - return normalized event for next state
 
 ---
 
