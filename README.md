@@ -333,6 +333,8 @@ cicd/
     template.yaml
     workflow.asl.json
     README.md
+  localstack/
+    README.md
 ```
 
 ### Packaging Strategy
