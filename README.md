@@ -1,8 +1,8 @@
-# Social Campaign Analyzer
+# Social Campaign Analyser
 
 ## Functional View
 
-![Social Campaign](social_campaign_picture.png)
+![Social Campaign](arch_view.png)
 
 ## Analysis API
 
@@ -354,11 +354,6 @@ Shared modules contain cross-cutting concerns only:
 4. `s3_store.py`: artifact JSON writes to S3
 5. `workflow_utils.py`: common workflow handler utilities (job id, stage completion/failure helpers)
 
-### Legacy Note
-
-Previous `src/common` and `src/handlers` layout was replaced with per-Lambda service folders to support isolated builds and smaller deployment artifacts.
-
-Root `requirements.txt` can still be used for local development tooling/tests. Lambda packaging should use each service's `requirements.txt`.
 
 ### Implementation Scope
 
